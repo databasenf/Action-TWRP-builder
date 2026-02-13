@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       MANIFEST_URL:
-        description: 'MANIFEST_URL (如果想使用SSH密钥，请使用 git@github.com:XXXXX)，安卓10以上设备树：https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp'
+        description: 'MANIFEST_URL'
         required: true
         default: 'https://github.com/minimal-manifest-twrp/platform_manifest_twrp_omni'
       MANIFEST_BRANCH:
@@ -24,10 +24,10 @@ on:
         required: true
         default: 'device/iFLYTEK/su30pro'
       COMMON_TREE_URL:
-        description: 'COMMON_TREE_URL (如果没有通用设备树，请留空)'
+        description: 'COMMON_TREE_URL'
         required: false
       COMMON_PATH:
-        description: 'COMMON_PATH (如果没有通用设备树，请留空)'
+        description: 'COMMON_PATH'
         required: false
       DEVICE_NAME:
         description: 'DEVICE_NAME'
@@ -45,111 +45,79 @@ on:
 jobs:
   build:
     if: github.event.repository.owner.id == github.event.sender.id
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
-    - name: Display Run Parameters
-      run: |
-        echo "::group::User Environment Variables"
-        echo "Manifest URL: ${{ github.event.inputs.MANIFEST_URL }}"
-        echo "Manifest Branch: ${{ github.event.inputs.MANIFEST_BRANCH }}"
-        echo "Device Tree URL: ${{ github.event.inputs.DEVICE_TREE_URL }}"
-        echo "Device Tree Branch: ${{ github.event.inputs.DEVICE_TREE_BRANCH }}"
-        echo "Device Path: ${{ github.event.inputs.DEVICE_PATH }}"
-        echo "Device Name: ${{ github.event.inputs.DEVICE_NAME }}"
-        echo "Makefile Name: ${{ github.event.inputs.MAKEFILE_NAME }}"
-        echo "Build Target: ${{ github.event.inputs.BUILD_TARGET }}.img"
-        echo "::endgroup::"
- 
-    # You might want to Checkout your repo first, but not mandatory
-    - name: Check Out
+    - name: Checkout
       uses: actions/checkout@v3
-    # Cleanup The Actions Workspace Using Custom Composite Run Actions
-    - name: Cleanup
-      uses: rokibhasansagar/slimhub_actions@main
-      # That's it! Now use your normal steps
 
-    - name: Prepare the environment
+    - name: Create Dockerfile
       run: |
-        sudo apt update
-        sudo apt -y upgrade
-        sudo apt -y install gperf gcc-multilib gcc-10-multilib g++-multilib g++-10-multilib libc6-dev lib32ncurses5-dev x11proto-core-dev libx11-dev tree lib32z-dev libgl1-mesa-dev libxml2-utils xsltproc bc ccache lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libwxgtk3.0-gtk3-dev libxml2 lzop pngcrush schedtool squashfs-tools imagemagick libbz2-dev lzma ncftp qemu-user-static libstdc++-10-dev libncurses5 python
+        cat > Dockerfile.twrp << 'EOF'
+        FROM ubuntu:20.04
 
-    - name: Install OpenJDK
-      uses: actions/setup-java@v3
-      with:
-        distribution: 'zulu'
-        java-version: '8'
+        ENV DEBIAN_FRONTEND=noninteractive
 
-    - name: Setup SSH Keys
-      if: ${{ startsWith(github.event.inputs.MANIFEST_URL, 'git@github.com') }}
-      uses: webfactory/ssh-agent@v0.5.4
-      with:
-          ssh-private-key: |
-              ${{ secrets.SSH_PRIVATE_KEY }}
+        RUN apt update && apt -y upgrade && \
+            apt -y install \
+            gperf gcc-multilib gcc-10-multilib g++-multilib g++-10-multilib \
+            libc6-dev lib32ncurses5-dev x11proto-core-dev libx11-dev tree \
+            lib32z-dev libgl1-mesa-dev libxml2-utils xsltproc bc ccache \
+            lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev \
+            libsdl1.2-dev libwxgtk3.0-gtk3-dev libxml2 lzop pngcrush \
+            schedtool squashfs-tools imagemagick libbz2-dev lzma ncftp \
+            qemu-user-static libstdc++-10-dev libncurses5 python curl git unzip zip openjdk-8-jdk
 
-    - name: Install repo
+        RUN mkdir /root/bin && \
+            curl https://storage.googleapis.com/git-repo-downloads/repo > /root/bin/repo && \
+            chmod a+x /root/bin/repo && \
+            ln -sf /root/bin/repo /usr/bin/repo
+
+        WORKDIR /workspace
+        EOF
+
+    - name: Build Docker Image
+      run: docker build -t twrp-builder -f Dockerfile.twrp .
+
+    - name: Run Build in Docker
       run: |
-        mkdir ~/bin
-        curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
-        chmod a+x ~/bin/repo
-        sudo ln -sf ~/bin/repo /usr/bin/repo
-      
-    - name: Initialize repo
-      run: |
-        mkdir workspace
-        cd workspace
-        echo "workspace-folder=$(pwd)" >> $GITHUB_OUTPUT
-        git config --global user.name "Nico170420"
-        git config --global user.email "b170420nc@gmail.com"
-        repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
-      id: pwd
-          
-    - name: Repo Sync
-      run: |
-        repo sync -j$(nproc --all) --force-sync
-      working-directory: workspace
-      
-    - name: Clone device tree
-      run: |
-        git clone ${{ github.event.inputs.DEVICE_TREE_URL }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.DEVICE_PATH }}
-      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
+        docker run --rm \
+          -v ${{ github.workspace }}:/workspace \
+          -e MANIFEST_URL="${{ github.event.inputs.MANIFEST_URL }}" \
+          -e MANIFEST_BRANCH="${{ github.event.inputs.MANIFEST_BRANCH }}" \
+          -e DEVICE_TREE_URL="${{ github.event.inputs.DEVICE_TREE_URL }}" \
+          -e DEVICE_TREE_BRANCH="${{ github.event.inputs.DEVICE_TREE_BRANCH }}" \
+          -e DEVICE_PATH="${{ github.event.inputs.DEVICE_PATH }}" \
+          -e COMMON_TREE_URL="${{ github.event.inputs.COMMON_TREE_URL }}" \
+          -e COMMON_PATH="${{ github.event.inputs.COMMON_PATH }}" \
+          -e DEVICE_NAME="${{ github.event.inputs.DEVICE_NAME }}" \
+          -e MAKEFILE_NAME="${{ github.event.inputs.MAKEFILE_NAME }}" \
+          -e BUILD_TARGET="${{ github.event.inputs.BUILD_TARGET }}" \
+          twrp-builder \
+          bash -c "
+            git config --global user.name 'builder'
+            git config --global user.email 'builder@example.com'
 
-    - name: Clone common tree
-      if: |
-        github.event.inputs.COMMON_TREE_URL != null
-        && github.event.inputs.COMMON_PATH != null
-      run: |
-        git clone ${{ github.event.inputs.COMMON_TREE_URL }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.COMMON_PATH }}
-      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
+            mkdir workspace
+            cd workspace
 
-    - name: Check Build Tree
-      uses: haya14busa/action-cond@v1
-      id: buildtree
-      with:
-        cond: ${{ github.event.inputs.MANIFEST_BRANCH == 'twrp-11' || github.event.inputs.MANIFEST_BRANCH == 'twrp-12.1' }}
-        if_true: twrp
-        if_false: omni
+            repo init --depth=1 -u \$MANIFEST_URL -b \$MANIFEST_BRANCH
+            repo sync -j\$(nproc --all) --force-sync
 
-    - name: Sync Device Dependencies
-      run: |
-        bash ${GITHUB_WORKSPACE}/scripts/convert.sh ${{ github.event.inputs.DEVICE_PATH }}/${{ steps.buildtree.outputs.value }}.dependencies
-        repo sync -j$(nproc --all)
-      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
-      continue-on-error: true
+            git clone \$DEVICE_TREE_URL -b \$DEVICE_TREE_BRANCH ./\$DEVICE_PATH
 
-    - name: Set Swap Space
-      uses: pierotofy/set-swap-space@master
-      with:
-        swap-size-gb: 12
+            if [ ! -z \"\$COMMON_TREE_URL\" ]; then
+              git clone \$COMMON_TREE_URL -b \$DEVICE_TREE_BRANCH ./\$COMMON_PATH
+            fi
 
-    - name: Building recovery
-      run: |
-        source build/envsetup.sh
-        export ALLOW_MISSING_DEPENDENCIES=true
-        lunch ${{ github.event.inputs.MAKEFILE_NAME }}-eng && make clean && make ${{ github.event.inputs.BUILD_TARGET }}image -j$(nproc --all)
-      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
+            source build/envsetup.sh
+            export ALLOW_MISSING_DEPENDENCIES=true
+            lunch \$MAKEFILE_NAME-eng
+            make clean
+            make \$BUILD_TARGETimage -j\$(nproc --all)
+          "
 
     - name: Upload to Release
       uses: softprops/action-gh-release@v1
