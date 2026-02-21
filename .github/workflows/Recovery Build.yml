@@ -69,6 +69,7 @@ jobs:
             libsdl1.2-dev libwxgtk3.0-gtk3-dev libxml2 lzop pngcrush \
             schedtool squashfs-tools imagemagick libbz2-dev lzma ncftp \
             qemu-user-static libstdc++-10-dev libncurses5 python curl git unzip zip openjdk-8-jdk
+            rsync
 
         RUN mkdir /root/bin && \
             curl https://storage.googleapis.com/git-repo-downloads/repo > /root/bin/repo && \
