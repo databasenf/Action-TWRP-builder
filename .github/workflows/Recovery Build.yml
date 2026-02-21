@@ -106,7 +106,7 @@ jobs:
             repo init --depth=1 -u \$MANIFEST_URL -b \$MANIFEST_BRANCH
             repo sync -j\$(nproc --all) --force-sync
 
-            git clone \$DEVICE_TREE_URL -b \$DEVICE_TREE_BRANCH ./\$DEVICE_PATH
+            git clone $DEVICE_TREE_URL -b $DEVICE_TREE_BRANCH $DEVICE_PATH
 
             if [ ! -z \"\$COMMON_TREE_URL\" ]; then
               git clone \$COMMON_TREE_URL -b \$DEVICE_TREE_BRANCH ./\$COMMON_PATH
