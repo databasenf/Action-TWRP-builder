@@ -68,7 +68,7 @@ jobs:
             lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev \
             libsdl1.2-dev libwxgtk3.0-gtk3-dev libxml2 lzop pngcrush \
             schedtool squashfs-tools imagemagick libbz2-dev lzma ncftp \
-            qemu-user-static libstdc++-10-dev libncurses5 python curl git unzip zip openjdk-8-jdk
+            qemu-user-static libstdc++-10-dev libncurses5 python curl git unzip zip openjdk-8-jdk \
             rsync
 
         RUN mkdir /root/bin && \
@@ -80,7 +80,9 @@ jobs:
         EOF
 
     - name: Build Docker Image
-      run: docker build -t twrp-builder -f Dockerfile.twrp .
+      run: |
+        docker builder prune -af
+        docker build -t twrp-builder -f Dockerfile.twrp .
 
     - name: Run Build in Docker
       run: |
@@ -107,7 +109,6 @@ jobs:
             repo init --depth=1 -u \$MANIFEST_URL -b \$MANIFEST_BRANCH
             repo sync -j\$(nproc --all) --force-sync
 
-            # 正确 clone 设备树（关键修复）
             git clone \$DEVICE_TREE_URL -b \$DEVICE_TREE_BRANCH \$DEVICE_PATH
 
             if [ ! -z \"\$COMMON_TREE_URL\" ]; then
