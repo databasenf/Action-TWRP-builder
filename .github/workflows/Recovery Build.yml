@@ -6,7 +6,7 @@ on:
       MANIFEST_URL:
         description: 'MANIFEST_URL'
         required: true
-        default: 'https://github.com/minimal-manifest-twrp/platform_manifest_twrp_omni'
+        default: ''
       MANIFEST_BRANCH:
         description: 'MANIFEST_BRANCH'
         required: true
@@ -14,15 +14,15 @@ on:
       DEVICE_TREE_URL:
         description: 'DEVICE_TREE_URL'
         required: true
-        default: 'https://github.com/databasenf/action_build_twrp_device_tree/releases/download/22001771342/DeviceTree.zip'
+        default: ''
       DEVICE_TREE_BRANCH:
         description: 'DEVICE_TREE_BRANCH'
         required: true
-        default: 'android-12.1'
+        default: ''
       DEVICE_PATH:
         description: 'DEVICE_PATH'
         required: true
-        default: 'device/iFLYTEK/su30pro'
+        default: ''
       COMMON_TREE_URL:
         description: 'COMMON_TREE_URL'
         required: false
